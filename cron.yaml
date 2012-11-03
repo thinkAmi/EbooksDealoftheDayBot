@@ -1,0 +1,6 @@
+# See https://developers.google.com/appengine/docs/python/config/cron?hl=ja#Uploading_Cron_Jobs
+cron:
+- description: tweet DOTD
+  url: /cron/tweet
+  schedule: every 1 hours
+  timezone: Asia/Tokyo
