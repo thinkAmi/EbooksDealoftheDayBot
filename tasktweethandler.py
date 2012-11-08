@@ -18,10 +18,7 @@ from twitterhelper import TwitterHelper
 from models import TweetHistory, ErrorMailHistory
 
 
-APRESS_URL = u'http://www.apress.com/'
-ERROR_TYPE_FAIL_WEB = u'web'
-ERROR_TYPE_FAIL_FEED = u'feed'
-
+# ツイートする抽象クラス：実際は、このクラスを継承して利用する
 class TaskTweetHandler(webapp2.RequestHandler):
     def post(self):
 
@@ -42,18 +39,13 @@ class TaskTweetHandler(webapp2.RequestHandler):
 
 
     def _tweet(self):
-
-        # Deal of Today を取得する
-        message = self._get_DOTD_from_web()
-
-        if message is None:
-            # RSSよりデータを取得
-            message = self._get_DOTD_from_feed()
+        # 今のところはDeal of the DayはFeedで配信されているため、Feedのみの検索で十分そう
+        message = self._get_DOTD_from_feed()
 
         if message is None:
             # エラーを出力
             logging.error(u'Cannot Get DOTD')
-            self._send_error_mail(ERROR_TYPE_FAIL_FEED)
+            self._send_error_mail(self._errorFeed)
             return
 
 
@@ -74,9 +66,10 @@ class TaskTweetHandler(webapp2.RequestHandler):
 
 
     def _get_DOTD_from_web(self):
+        # 【今のところ使っていない】
         # Apressのサイトをスクレイピングして、Deal of the Day のデータを取得する
         # 取得できない場合、Noneを返す
-        response = urlfetch.fetch(APRESS_URL)
+        response = urlfetch.fetch(self._dealUrl)
 
         # Deal of Today を取得する
         root = html.fromstring(response.content)
@@ -86,7 +79,7 @@ class TaskTweetHandler(webapp2.RequestHandler):
         # 現時点では、該当するものは3個
         if len(entries) != 3:
             # スクレイピングエラーの場合、スクレイピング方法を変更する必要があるため、管理者アカウントへメールを飛ばす
-            self._send_error_mail(ERROR_TYPE_FAIL_WEB)
+            self._send_error_mail(self._errorWeb)
             return None
 
         # [0]に書名あり
@@ -105,7 +98,7 @@ class TaskTweetHandler(webapp2.RequestHandler):
         # Google Feed API での1件フェッチ
         url = (
             u'https://ajax.googleapis.com/ajax/services/feed/load?v=1.0&q='
-            + u'http://www.apress.com/index.php/dailydeals/index/rss'
+            + self._feedUrl
             + u'&num=1'
             + u'&userip=' + ip
             )
@@ -124,13 +117,29 @@ class TaskTweetHandler(webapp2.RequestHandler):
 
 
     def _create_message(self, title):
-        return title + u' ' + APRESS_URL
+        # 複数回使う可能性があるものは、最初に編集しておく
+        publisher = u'[' + self._tweetId + u']　'
+        ebookTitle = self.edit_title(title)
+
+        msg = publisher + ebookTitle + u'　' + self._dealUrl
+        if len(msg) <= 140:
+            return msg
+        
+        msg = publisher + ebookTitle
+        if len(msg) <= 140:
+            return msg
+
+        msg = ebookTitle
+        if len(msg) <= 140:
+            return msg
+
+        return ebookTitle[0:141]
 
 
 
     def _has_tweeted(self, message):
         # データストアを検索し、値が一致すれば、すでにツイート済
-        history = TweetHistory.get_by_id(u'tweet')
+        history = TweetHistory.get_by_id(self._tweetId)
 
         if history is None:
             # エンティティがない場合は、まだツイートしていない
@@ -144,7 +153,7 @@ class TaskTweetHandler(webapp2.RequestHandler):
 
     def _save_tweet_message(self, message):
         # ツイートした内容をデータストアに保存する
-        history = TweetHistory(id=u'tweet', last_message=message)
+        history = TweetHistory(id=self._tweetId, last_message=message)
         history.put()
 
 
@@ -172,16 +181,9 @@ class TaskTweetHandler(webapp2.RequestHandler):
 
     def _add_send_error_mail_task(self, history, errorType):
         # メールの送信、送信履歴の更新
-
-        subject = None
-        if errorType == ERROR_TYPE_FAIL_WEB:
-            subject = 'Error:web'
-        elif errorType == ERROR_TYPE_FAIL_FEED:
-            subject = 'Error:feed'
-
         taskqueue.add(
             url='/task/errormail', 
-            params={'subject': subject}
+            params={'subject': errorType}
             )
 
         if history is None:
@@ -192,10 +194,92 @@ class TaskTweetHandler(webapp2.RequestHandler):
         history.put()
 
 
+    '''
+    以下、具象クラスでオーバーライドが任意のメソッド
+    '''
+    def edit_title(self, title):
+        # feedのタイトルが長いなどの場合、編集して返すためのメソッド
+        return title
+
+
+
+# Deal of the Dayを取得する具象クラス
+# Apress
+class TaskTweetApressHandler(TaskTweetHandler):
+    def __init__(self, request, response):
+        # __init__をオーバーライドするなら、必ず呼ぶメソッド(self.initialize(request, response))
+        # http://webapp-improved.appspot.com/guide/handlers.html#overriding-init
+        self.initialize(request, response)
+
+        self._tweetId = 'Apress'
+        self._feedUrl = 'http://www.apress.com/index.php/dailydeals/index/rss'
+        self._dealUrl = 'http://www.apress.com/'
+        self._errorWeb = 'Error:ApressWeb'
+        self._errorFeed = 'Error:ApressFeed'
+
+
+
+
+# PEARSON (SAMS等)
+class TaskTweetPearsonHandler(TaskTweetHandler):
+    def __init__(self, request, response):
+        self.initialize(request, response)
+
+        self._tweetId = 'PEARSON'
+        self._feedUrl = 'http://www.informit.com/deals/deal_rss.aspx'
+        self._dealUrl = 'http://www.informit.com/deals/'
+        self._errorWeb = 'Error:PEARSONWeb'
+        self._errorFeed = 'Error:PEARSONFeed'
+
+
+    def edit_title(self, title):
+        # PEARSONの場合、タイトルが長すぎてツイートできないことがある
+        # [ :: ]の後ろにタイトルが入ってくるので、そこで区切る
+        splited = title.split(' :: ')
+        return splited[1]
+
+
+# O'Reilly
+class TaskTweetOreillyHandler(TaskTweetHandler):
+    def __init__(self, request, response):
+        self.initialize(request, response)
+
+        self._tweetId = 'OReilly'
+        self._feedUrl = 'http://feeds.feedburner.com/oreilly/ebookdealoftheday'
+        self._dealUrl = 'http://oreilly.com/'
+        self._errorWeb = 'Error:OReillyWeb'
+        self._errorFeed = 'Error:OReillyFeed'
+
+
+    def edit_title(self, title):
+        # O'Reillyの場合、タイトルが長い上、セットになることもある
+        # [:]で区切り、最後の要素がタイトルとなる
+        splited = title.split(':')
+        return splited[-1]
+
+
+# Microsoft Press(O'Reilly)
+class TaskTweetMicrosoftPressHandler(TaskTweetHandler):
+    def __init__(self, request, response):
+        self.initialize(request, response)
+
+        self._tweetId = 'MicrosoftPress'
+        self._feedUrl = 'http://feeds.feedburner.com/oreilly/mspebookdeal'
+        self._dealUrl = 'http://oreilly.com/'
+        self._errorWeb = 'Error:OReillyMSPressWeb'
+        self._errorFeed = 'Error:OReillyMSPressFeed'
+
+
+    def edit_title(self, title):
+        splited = title.split(':')
+        return splited[-1]
 
 
 debug = os.environ.get('SERVER_SOFTWARE', '').startswith('Dev')
             
 app = webapp2.WSGIApplication([
-                               ('/task/tweet', TaskTweetHandler),
+                               ('/task/tweet/apress', TaskTweetApressHandler),
+                               ('/task/tweet/pearson', TaskTweetPearsonHandler),
+                               ('/task/tweet/oreilly', TaskTweetOreillyHandler),
+                               ('/task/tweet/oreillymspress', TaskTweetMicrosoftPressHandler),
                                ], debug=debug)
