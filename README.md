@@ -1,7 +1,7 @@
-ApressSearch
+EbooksDealoftheDayBot
 ========
 
-ApressのDeal of the DayをツイートするBotをGAEで動かすためのプログラムです。
+複数の出版社のDeal of the DayをツイートするBotをGAEで動かすためのプログラムです。
 
 
 
