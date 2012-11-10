@@ -21,6 +21,13 @@ EbooksDealoftheDayBot
 3. あとはGoogle App Engineへとデプロイすれば、Botが動作します。
 
 
+動作
+----------
+
+* Deal of the Dayのあるサイトのフィードを、一時間に一度、Google Feed APIにてフィードのチェックを行います (現時点では、Apress・PEARSON・O'Reilly・O'Reilly Microsoft Press)。
+* 変更があれば、TwitterBotがツイートします。
+* /feedにアクセスすることで、フィードを出力します。
+
 
 ライセンス
 ----------
