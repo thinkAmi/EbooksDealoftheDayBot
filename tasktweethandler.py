@@ -118,8 +118,9 @@ class TaskTweetHandler(webapp2.RequestHandler):
 
     def _create_message(self, title):
         # 複数回使う可能性があるものは、最初に編集しておく
+        # また、先頭に空白・タブ・改行が入ってくる可能性があるため、それらも削除する
         publisher = u'[' + self._tweetId + u']　'
-        ebookTitle = self.edit_title(title)
+        ebookTitle = self.edit_title(title).lstrip()
 
         msg = publisher + ebookTitle + u'　' + self._dealUrl
         if len(msg) <= 140:
@@ -133,7 +134,7 @@ class TaskTweetHandler(webapp2.RequestHandler):
         if len(msg) <= 140:
             return msg
 
-        return ebookTitle[0:141]
+        return ebookTitle[0:140]
 
 
 
