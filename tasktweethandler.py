@@ -67,7 +67,7 @@ class TaskTweetHandler(webapp2.RequestHandler):
 
     def _get_DOTD_from_web(self):
         # 【今のところ使っていない】
-        # Apressのサイトをスクレイピングして、Deal of the Day のデータを取得する
+        # サイトをスクレイピングして、Deal of the Day のデータを取得する
         # 取得できない場合、Noneを返す
         response = urlfetch.fetch(self._dealUrl)
 
@@ -89,7 +89,7 @@ class TaskTweetHandler(webapp2.RequestHandler):
 
 
     def _get_DOTD_from_feed(self):
-        # Apressのフィードを取得して、Deal of the Day のデータを取得する
+        # 子クラスで指定したFeedのURLを元に、、Deal of the Day のデータを取得する
         # 取得できない場合、Noneを返す
 
         # 必須パラメータなので、呼び出し元のサーバーIPアドレスを取得する

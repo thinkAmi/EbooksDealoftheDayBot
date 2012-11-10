@@ -13,6 +13,10 @@ handlers:
 - url: /task/errormail
   script: taskerrormailhandler.app
   login: admin
+- url: /feed
+  script: feedhandler.app
 libraries:
 - name: lxml
+  version: latest
+- name: django
   version: latest
