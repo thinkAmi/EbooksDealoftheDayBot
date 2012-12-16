@@ -75,7 +75,7 @@ class TaskTweetHandler(webapp2.RequestHandler):
         root = html.fromstring(response.content)
         # 全DOM中から、<p>タグがクラス名が「centred」のものをさがす
         entries = root.xpath('//p[@class="centred"]/a/text()')
-        
+
         # 現時点では、該当するものは3個
         if len(entries) != 3:
             # スクレイピングエラーの場合、スクレイピング方法を変更する必要があるため、管理者アカウントへメールを飛ばす
@@ -125,7 +125,7 @@ class TaskTweetHandler(webapp2.RequestHandler):
         msg = publisher + ebookTitle + u'　' + self._dealUrl
         if len(msg) <= 140:
             return msg
-        
+
         msg = publisher + ebookTitle
         if len(msg) <= 140:
             return msg
@@ -164,7 +164,7 @@ class TaskTweetHandler(webapp2.RequestHandler):
         # 送信履歴がないこと・本日はまだ送信していないことが条件
         # ndbの場合キャッシュをするので、キャッシュはオフにしておく
         history = ErrorMailHistory.get_by_id(
-                        errorType, 
+                        errorType,
                         use_cache=False,
                         use_memcache=False
                         )
@@ -183,7 +183,7 @@ class TaskTweetHandler(webapp2.RequestHandler):
     def _add_send_error_mail_task(self, history, errorType):
         # メールの送信、送信履歴の更新
         taskqueue.add(
-            url='/task/errormail', 
+            url='/task/errormail',
             params={'subject': errorType}
             )
 
@@ -254,9 +254,15 @@ class TaskTweetOreillyHandler(TaskTweetHandler):
 
     def edit_title(self, title):
         # O'Reillyの場合、タイトルが長い上、セットになることもある
-        # [:]で区切り、最後の要素がタイトルとなる
+        # [:]で区切り、２つ目以降の要素がタイトルとなる
         splited = title.split(':')
-        return splited[-1]
+
+        results = []
+        for i, title in enumerate(splited):
+            if i > 0:
+                results.append(title)
+
+        return ':'.join(results)
 
 
 # Microsoft Press(O'Reilly)
@@ -273,11 +279,18 @@ class TaskTweetMicrosoftPressHandler(TaskTweetHandler):
 
     def edit_title(self, title):
         splited = title.split(':')
-        return splited[-1]
+
+        results = []
+        for i, title in enumerate(splited):
+            if i > 0:
+                results.append(title)
+
+        return ':'.join(results)
+
 
 
 debug = os.environ.get('SERVER_SOFTWARE', '').startswith('Dev')
-            
+
 app = webapp2.WSGIApplication([
                                ('/task/tweet/apress', TaskTweetApressHandler),
                                ('/task/tweet/pearson', TaskTweetPearsonHandler),
