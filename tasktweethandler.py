@@ -257,6 +257,11 @@ class TaskTweetOreillyHandler(TaskTweetHandler):
         # [:]で区切り、２つ目以降の要素がタイトルとなる
         splited = title.split(':')
 
+        # また、シリーズ品の場合、[:]なしの場合がある
+        # その時は、タイトルそのままを返す
+        if len(splited) == 1:
+            return title
+
         results = []
         for i, title in enumerate(splited):
             if i > 0:
@@ -279,6 +284,9 @@ class TaskTweetMicrosoftPressHandler(TaskTweetHandler):
 
     def edit_title(self, title):
         splited = title.split(':')
+
+        if len(splited) == 1:
+            return title
 
         results = []
         for i, title in enumerate(splited):
