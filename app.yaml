@@ -8,7 +8,7 @@ handlers:
   script: crontweethandler.app
   login: admin
 - url: /task/tweet/.*
-  script: tasktweethandler.app
+  script: tasktweetpublisherhandler.app
   login: admin
 - url: /task/errormail
   script: taskerrormailhandler.app

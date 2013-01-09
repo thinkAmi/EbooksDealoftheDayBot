@@ -8,10 +8,6 @@ import json
 
 from google.appengine.api import urlfetch
 from google.appengine.api import mail
-from google.appengine.api.labs import taskqueue
-
-from lxml import html
-import yaml
 
 from python_twitter.twitter import TwitterError
 from twitterhelper import TwitterHelper
@@ -19,7 +15,8 @@ from models import TweetHistory, ErrorMailHistory
 
 
 # ツイートする抽象クラス：実際は、このクラスを継承して利用する
-class TaskTweetHandler(webapp2.RequestHandler):
+# ソース自体は、tasktweetpublisherhandler.pyにコードを書く
+class TaskTweetBaseHandler(webapp2.RequestHandler):
     def post(self):
 
         # 例外が出た場合、エラーログを残し、タスクを終了する。
@@ -39,13 +36,12 @@ class TaskTweetHandler(webapp2.RequestHandler):
 
 
     def _tweet(self):
-        # 今のところはDeal of the DayはFeedで配信されているため、Feedのみの検索で十分そう
-        message = self._get_DOTD_from_feed()
+        message = self._get_DOTD()
 
         if message is None:
             # エラーを出力
             logging.error(u'Cannot Get DOTD')
-            self._send_error_mail(self._errorFeed)
+            self._send_error_mail(self._errorContents)
             return
 
 
@@ -65,27 +61,16 @@ class TaskTweetHandler(webapp2.RequestHandler):
 
 
 
-    def _get_DOTD_from_web(self):
-        # 【今のところ使っていない】
-        # サイトをスクレイピングして、Deal of the Day のデータを取得する
-        # 取得できない場合、Noneを返す
-        response = urlfetch.fetch(self._dealUrl)
+    def _get_DOTD(self):
+        if hasattr(self, '_feedUrl'):
+            return self._get_DOTD_from_feed()
 
-        # Deal of Today を取得する
-        root = html.fromstring(response.content)
-        # 全DOM中から、<p>タグがクラス名が「centred」のものをさがす
-        entries = root.xpath('//p[@class="centred"]/a/text()')
+        elif hasattr(self, '_scrapeUrl'):
+            return self._get_DOTD_from_web()
 
-        # 現時点では、該当するものは3個
-        if len(entries) != 3:
-            # スクレイピングエラーの場合、スクレイピング方法を変更する必要があるため、管理者アカウントへメールを飛ばす
-            self._send_error_mail(self._errorWeb)
+        else:
+            # ここまで来た場合、プログラムでオーバーライドが適切に行われていないと考えられるため、エラーで落とせるようにする
             return None
-
-        # [0]に書名あり
-        result = self._create_message(entries[0])
-        return result
-
 
 
     def _get_DOTD_from_feed(self):
@@ -114,6 +99,11 @@ class TaskTweetHandler(webapp2.RequestHandler):
         # ここまで来た場合、該当するデータがないということで、Noneを返す
         return None
 
+
+    def _get_DOTD_from_web(self):
+        title = self.scrape()
+        result = self._create_message(title)
+        return result
 
 
     def _create_message(self, title):
@@ -198,110 +188,11 @@ class TaskTweetHandler(webapp2.RequestHandler):
     '''
     以下、具象クラスでオーバーライドが任意のメソッド
     '''
+
     def edit_title(self, title):
         # feedのタイトルが長いなどの場合、編集して返すためのメソッド
         return title
 
-
-
-# Deal of the Dayを取得する具象クラス
-# Apress
-class TaskTweetApressHandler(TaskTweetHandler):
-    def __init__(self, request, response):
-        # __init__をオーバーライドするなら、必ず呼ぶメソッド(self.initialize(request, response))
-        # http://webapp-improved.appspot.com/guide/handlers.html#overriding-init
-        self.initialize(request, response)
-
-        self._tweetId = 'Apress'
-        self._feedUrl = 'http://www.apress.com/index.php/dailydeals/index/rss'
-        self._dealUrl = 'http://www.apress.com/'
-        self._errorWeb = 'Error:ApressWeb'
-        self._errorFeed = 'Error:ApressFeed'
-
-
-
-
-# PEARSON (SAMS等)
-class TaskTweetPearsonHandler(TaskTweetHandler):
-    def __init__(self, request, response):
-        self.initialize(request, response)
-
-        self._tweetId = 'PEARSON'
-        self._feedUrl = 'http://www.informit.com/deals/deal_rss.aspx'
-        self._dealUrl = 'http://www.informit.com/deals/'
-        self._errorWeb = 'Error:PEARSONWeb'
-        self._errorFeed = 'Error:PEARSONFeed'
-
-
-    def edit_title(self, title):
-        # PEARSONの場合、タイトルが長すぎてツイートできないことがある
-        # [ :: ]の後ろにタイトルが入ってくるので、そこで区切る
-        splited = title.split(' :: ')
-        return splited[1]
-
-
-# O'Reilly
-class TaskTweetOreillyHandler(TaskTweetHandler):
-    def __init__(self, request, response):
-        self.initialize(request, response)
-
-        self._tweetId = 'OReilly'
-        self._feedUrl = 'http://feeds.feedburner.com/oreilly/ebookdealoftheday'
-        self._dealUrl = 'http://oreilly.com/'
-        self._errorWeb = 'Error:OReillyWeb'
-        self._errorFeed = 'Error:OReillyFeed'
-
-
-    def edit_title(self, title):
-        # O'Reillyの場合、タイトルが長い上、セットになることもある
-        # [:]で区切り、２つ目以降の要素がタイトルとなる
-        splited = title.split(':')
-
-        # また、シリーズ品の場合、[:]なしの場合がある
-        # その時は、タイトルそのままを返す
-        if len(splited) == 1:
-            return title
-
-        results = []
-        for i, title in enumerate(splited):
-            if i > 0:
-                results.append(title)
-
-        return ':'.join(results)
-
-
-# Microsoft Press(O'Reilly)
-class TaskTweetMicrosoftPressHandler(TaskTweetHandler):
-    def __init__(self, request, response):
-        self.initialize(request, response)
-
-        self._tweetId = 'MicrosoftPress'
-        self._feedUrl = 'http://feeds.feedburner.com/oreilly/mspebookdeal'
-        self._dealUrl = 'http://oreilly.com/'
-        self._errorWeb = 'Error:OReillyMSPressWeb'
-        self._errorFeed = 'Error:OReillyMSPressFeed'
-
-
-    def edit_title(self, title):
-        splited = title.split(':')
-
-        if len(splited) == 1:
-            return title
-
-        results = []
-        for i, title in enumerate(splited):
-            if i > 0:
-                results.append(title)
-
-        return ':'.join(results)
-
-
-
-debug = os.environ.get('SERVER_SOFTWARE', '').startswith('Dev')
-
-app = webapp2.WSGIApplication([
-                               ('/task/tweet/apress', TaskTweetApressHandler),
-                               ('/task/tweet/pearson', TaskTweetPearsonHandler),
-                               ('/task/tweet/oreilly', TaskTweetOreillyHandler),
-                               ('/task/tweet/oreillymspress', TaskTweetMicrosoftPressHandler),
-                               ], debug=debug)
+    def scrape(self):
+        # 対象のWebサイトをスクレイピングして返すためのメソッド
+        return None
