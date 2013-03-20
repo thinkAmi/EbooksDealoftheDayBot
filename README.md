@@ -9,15 +9,15 @@ EbooksDealoftheDayBot
 ----------
 
 * OS: Windows7 x64
-* SDK: Google App Engine SDK for Python  1.7.4 - 2012-12-13
+* SDK: Google App Engine SDK for Python  1.7.6 - 2013-03-19
 * Python: Python2.7
 
 
 セットアップ
 ----------
 
-1. app.yamlに自分のApplicationIDを入力します。
-2. api.yamlに自分のTwitterBotの各種APIキーを入力します。
+1. app.example.yamlをapp.yamlにリネームし、自分のApplicationIDを入力します。
+2. api.example.yamlをapi.yamlに自分のTwitterBotの各種APIキーを入力します。
 3. あとはGoogle App Engineへとデプロイすれば、Botが動作します。
 
 
