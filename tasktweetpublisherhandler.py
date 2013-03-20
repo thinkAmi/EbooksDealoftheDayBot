@@ -82,16 +82,19 @@ class TaskTweetOreillyHandler(TaskTweetBaseHandler):
 
 
     def edit_title(self, title):
-        # O'Reillyの場合、タイトルが長い上、セットになることもある
-        # [:]で区切り、２つ目以降の要素がタイトルとなる
-        splited = title.split(':')
+        # [:]がない場合(セット販売とか) -> そのまま表示
+        # [:]がある場合(単品) -> [:]で区切り、２つ目以降の要素がタイトルとなる
+        if ':' in title:
+            splited = title.split(':')
 
-        results = []
-        for i, title in enumerate(splited):
-            if i > 0:
-                results.append(title)
+            results = []
+            for i, title in enumerate(splited):
+                if i > 0:
+                    results.append(title)
 
-        return ':'.join(results)
+            return ':'.join(results)
+        else:
+            return title
 
 
 # Microsoft Press(O'Reilly)
